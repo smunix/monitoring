@@ -1,0 +1,7 @@
+cradle:
+  cabal:
+    - path: "./Main.hs"
+      component: "health:exe:health"
+
+    - path: "./Paths_health.hs"
+      component: "health:exe:health"

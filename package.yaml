@@ -1,0 +1,33 @@
+name: health
+version: "0.0.0.1"
+
+default-extensions:
+  - BlockArguments
+  - GADTs
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NumericUnderscores
+  - OverloadedStrings
+  - QuasiQuotes
+  - TemplateHaskell
+  - TypeApplications
+  - TypeFamilies  
+
+dependencies:
+  - async
+  - base
+  - bytestring
+  - network
+  - process
+  - safe-exceptions
+  - signal
+  - stm
+
+executables:
+  health:
+    main: Main.hs
+    source-dirs: .
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
