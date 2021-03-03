@@ -17,7 +17,10 @@ dependencies:
   - async
   - base
   - bytestring
+  - containers
   - network
+  - optics
+  - optics-extra
   - process
   - safe-exceptions
   - signal
