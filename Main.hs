@@ -33,6 +33,11 @@ data Report where
   Failure :: Report
   deriving (Eq)
 
+data Status where
+  Green :: Status
+  Red :: Status
+  deriving (Eq)
+
 reporter = iso enc dec
   where
     enc :: Report -> Bool
@@ -41,11 +46,6 @@ reporter = iso enc dec
     dec :: Bool -> Report
     dec True = Success
     dec False = Failure
-
-data SystemStatus where
-  Okay :: SystemStatus
-  Alarm :: SystemStatus
-  deriving (Eq)
 
 main :: IO ()
 main = do
@@ -91,35 +91,44 @@ waitForTerminationSignal = do
   -- Check terminate's value until it is true (i.e. retry if false)
   (readTVar terminate >>= check) & atomically
 
-sendAlarms :: TQueue a00 -> IO ()
-sendAlarms = error "not implemented"
+sendAlarms :: TQueue Status -> IO ()
+sendAlarms sq = loop & forever
+  where
+    loop :: IO ()
+    loop =
+      readTQueue sq & atomically
+        >>= \case
+          Green -> putStrLn "Green: system status is normal."
+          Red -> putStrLn "Red: system is in a degraded status."
 
 -- | Keep a list of the most recent n reports:
 -- * if 80% or more are successes, the system is in good working order
 -- * if 50% or fewer are successes, the system is failing
 -- * a success rate between 50 and 80% doesn't allow to make a determination
-analyzeReports :: Int -> TQueue Report -> TQueue SystemStatus -> IO ()
+analyzeReports :: Int -> TQueue Report -> TQueue Status -> IO ()
 analyzeReports ws rq sq = go Nothing ws mempty
   where
-    shouldAlert :: [] Report -> Maybe SystemStatus
+    shouldAlert :: [] Report -> Maybe Status
     shouldAlert = \case
       [] -> Nothing
-      (Success :< reports) ->
-        walk (1, 1) kont reports
-      (Failure :< reports) ->
-        walk (0, 1) kont reports
+      Success :< reports -> walk 1 kont reports
+      Failure :< reports -> walk 0 kont reports
       where
-        kont :: Ratio.Ratio Int -> Maybe SystemStatus
+        kont :: Ratio.Ratio Int -> Maybe Status
         kont r
-          | r <= 50 Ratio.% 100 = Just Alarm
-          | 80 Ratio.% 100 <= r = Just Okay
+          | r <= 50 Ratio.% 100 = Just Red
+          | 80 Ratio.% 100 <= r = Just Green
+          | otherwise = Nothing
 
-        walk :: (Int, Int) -> (Ratio.Ratio Int -> Maybe SystemStatus) -> [] Report -> Maybe SystemStatus
-        walk stats@(uncurry (Ratio.%) -> r) k [] = k r -- todo: smunix: implement short-circuiting if ratio is hit before end of list
-        walk stats@(uncurry (Ratio.%) -> r) k (Success :< reports) = walk (stats ^. _1 + 1, stats ^. _2 + 1) k reports
-        walk stats@(uncurry (Ratio.%) -> r) k (Failure :< reports) = walk (stats ^. _1, stats ^. _2 + 1) k reports
+        rate :: Int -> Ratio.Ratio Int
+        rate = flip (Ratio.%) ws
 
-    go :: Maybe SystemStatus -> Int -> [] Report -> IO ()
+        walk :: Int -> (Ratio.Ratio Int -> Maybe Status) -> [] Report -> Maybe Status
+        walk (rate -> !r) k [] = k r
+        walk !stats k (Success :< reports) = walk (stats + 1) k reports
+        walk !stats k (Failure :< reports) = walk stats k reports
+
+    go :: Maybe Status -> Int -> [] Report -> IO ()
     go !status 0 reports = do
       status'
         & traverseOf
@@ -130,7 +139,7 @@ analyzeReports ws rq sq = go Nothing ws mempty
               & when (status /= status')
       analyzeReports ws rq sq
       where
-        status' :: Maybe SystemStatus
+        status' :: Maybe Status
         !status' = shouldAlert reports <|> status
     go !status !n reports = do
       rpt <- readTQueue rq & atomically
