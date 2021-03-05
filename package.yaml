@@ -21,10 +21,12 @@ dependencies:
   - network
   - optics
   - optics-extra
+  - primitive
   - process
   - safe-exceptions
   - signal
   - stm
+  - unix
 
 executables:
   health:

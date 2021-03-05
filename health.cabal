@@ -34,8 +34,10 @@ executable health
     , network
     , optics
     , optics-extra
+    , primitive
     , process
     , safe-exceptions
     , signal
     , stm
+    , unix
   default-language: Haskell2010
