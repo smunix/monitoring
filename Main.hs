@@ -156,6 +156,7 @@ generateReports dur rq =
             r x = kont x >> byteR (count -1) w'
             b = w .&. 0x1
             w' = w `shiftR` 1
+    reports kont _ = return ()
 
 aggregateReportsMain :: Int -> [] Char -> IO ()
 aggregateReportsMain windowSize saddr = do
@@ -188,9 +189,7 @@ sendAlarms :: TQueue Status -> IO ()
 sendAlarms sq = loop & forever
   where
     loop :: IO ()
-    loop =
-      readTQueue sq & atomically
-        >>= print
+    loop = readTQueue sq & atomically >>= print
 
 class Analyze (t :: Symbol) (s :: Symbol) where
   type AnalyzeT t s :: Type
@@ -281,7 +280,7 @@ instance Analyze "reports" "wma" where
         IO ()
       withStatus1 (rate -> r) status k
         | r <= 30 Ratio.% 100 = k status Red
-        | 80 Ratio.% 100 <= r = k status Green
+        | 45 Ratio.% 100 <= r = k status Green
         | otherwise = k status status
 
       alarm0 ::
@@ -318,7 +317,7 @@ instance Analyze "reports" "wma" where
         !b <- readTQueue rq & atomically <&> conv
         b & CBool & writePrimArray arr 0
         !b' <- readPrimArray arr ws'max
-        let !count = b & fromIntegral & countFn & flip subtract (b' & fromIntegral)
+        let !count = b & fromIntegral & countFn & subtract (b' & fromIntegral)
         withStatus1
           count
           status
@@ -327,7 +326,7 @@ instance Analyze "reports" "wma" where
         !b <- readTQueue rq & atomically <&> conv
         b & CBool & writePrimArray arr i
         !b' <- readPrimArray arr i'
-        let !count = b & fromIntegral & countFn & flip subtract (b' & fromIntegral)
+        let !count = b & fromIntegral & countFn & subtract (b' & fromIntegral)
         withStatus1
           count
           status
@@ -345,7 +344,7 @@ instance Analyze "reports" "wma" where
         !b <- readTQueue rq & atomically <&> conv
         b & CBool & writePrimArray arr ws'max
         !b' <- readPrimArray arr ws'max
-        let !count = b & fromIntegral & countFn & flip subtract (b' & fromIntegral)
+        let !count = b & fromIntegral & countFn & subtract (b' & fromIntegral)
         withStatus0
           count
           \case
@@ -355,7 +354,7 @@ instance Analyze "reports" "wma" where
         !b <- readTQueue rq & atomically <&> conv
         b & CBool & writePrimArray arr i
         !b' <- readPrimArray arr i'
-        let !count = b & fromIntegral & countFn & flip subtract (b' & fromIntegral)
+        let !count = b & fromIntegral & countFn & subtract (b' & fromIntegral)
         withStatus0
           count
           \case
@@ -411,8 +410,8 @@ reportBytes str rq =
     decodeByte :: Char -> IO ()
     decodeByte =
       \case
-        '0' -> print Failure >> (writeTQueue rq Failure & atomically)
-        '1' -> print Success >> (writeTQueue rq Success & atomically)
+        '0' -> writeTQueue rq Failure & atomically
+        '1' -> writeTQueue rq Success & atomically
         _ -> print "Unknown"
 
 recvReports ::
